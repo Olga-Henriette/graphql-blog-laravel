@@ -1,0 +1,99 @@
+"Scalar de gestion du temps au format standard Y-m-d H:i:s."
+scalar DateTime @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+# =========================================================================
+# QUERIES REQUIRED BY THE SUBJECT
+# =========================================================================
+type Query {
+    "1. Récupérer tous les utilisateurs (Sans pagination)"
+    users: [User!]! @all
+
+    "2. Récupérer un utilisateur par son ID"
+    user(id: ID! @eq): User @find
+
+    "3. Récupérer les articles avec la pagination (Bonus 1) et tri par récence"
+    posts: [Post!]! @paginate(defaultCount: 5) @orderBy(column: "created_at", direction: DESC)
+
+    "4. Récupérer un article spécifique par son ID"
+    post(id: ID! @eq): Post @find
+
+    "5. Obtenir le profil de l'utilisateur actuellement connecté (Protégé)"
+    me: User @auth
+}
+
+# =========================================================================
+# MUTATIONS REQUIRED BY THE SUBJECT
+# =========================================================================
+type Mutation {
+    "1. Connexion de l'utilisateur pour obtenir un token (Simulé ou via Sanctum)"
+    login(email: String!): AuthPayload! @field(resolver: "App\\GraphQL\\Mutations\\Login")
+
+    "2. Créer un article (Protégé par authentification)"
+    createPost(input: CreatePostInput!): Post! @guard @field(resolver: "App\\GraphQL\\Mutations\\CreatePost")
+
+    "3. Modifier un article (Protégé et restreint à l'auteur via une Policy)"
+    updatePost(id: ID!, input: UpdatePostInput!): Post! @guard @update
+
+    "4. Supprimer un article (Protégé et restreint à l'auteur via une Policy)"
+    deletePost(id: ID!): Post! @guard @delete
+}
+
+# =========================================================================
+# DATA TYPES & RELATIONSHIPS
+# =========================================================================
+
+type User {
+    id: ID!
+    name: String!
+    email: String!
+    created_at: DateTime!
+    updated_at: DateTime!
+    posts: [Post!]! @hasMany
+}
+
+type Post {
+    id: ID!
+    title: String!
+    content: String!
+    created_at: DateTime!
+    updated_at: DateTime!
+    "Résolution automatique de l'auteur sans problème N+1 natif de Lighthouse"
+    author: User! @belongsTo(relation: "author")
+    comments: [Comment!]! @hasMany
+}
+
+type Comment {
+    id: ID!
+    content: String!
+    created_at: DateTime!
+    updated_at: DateTime!
+    post: Post! @belongsTo
+    author: User! @belongsTo(relation: "author")
+}
+
+# =========================================================================
+# INPUTS & RESPONSES OBJECTS
+# =========================================================================
+
+input LoginInput {
+    email: String! @rules(apply: ["required", "email"])
+}
+
+type AuthPayload {
+    token: String!
+    user: User!
+}
+
+input CreatePostInput {
+    title: String! @rules(apply: ["required", "min:5"])
+    content: String! @rules(apply: ["required", "min:10"])
+}
+
+input CreateUserBelongsToRelation {
+    connect: ID!
+}
+
+input UpdatePostInput {
+    title: String @rules(apply: ["sometimes", "min:5"])
+    content: String @rules(apply: ["sometimes", "min:10"])
+}
